@@ -1,107 +1,91 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Sydney City Guide — Softer Volumes</title>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Sydney City Guide — Softer Volumes (Map)</title>
+
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+    integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
+
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, sans-serif; }
+
     #container { display: flex; flex-direction: column; height: 100vh; }
+
     #header { background: #111; color: white; padding: 12px 16px; display: flex; align-items: center; justify-content: space-between; }
     #header h1 { font-size: 15px; font-weight: 600; letter-spacing: 0.01em; }
     #header p { font-size: 12px; color: #888; }
+
     #filters { background: #fff; padding: 8px 12px; display: flex; flex-wrap: wrap; gap: 6px; border-bottom: 1px solid #e5e5e5; }
     .filter-btn {
       padding: 5px 12px; border-radius: 20px; border: 1.5px solid;
       font-size: 12px; cursor: pointer; font-weight: 500;
       transition: all 0.15s; background: white;
     }
-    .filter-btn.active { color: white !important; }
-    .filter-btn[data-category="all"] { border-color: #111; }
-    .filter-btn[data-category="all"].active { background: #111; color: white !important; }
-    #map { flex: 1; min-height: 0; height: 100%; width: 100%; }
-    .zoom-controls {
-      position: absolute;
-      bottom: 120px;
-      right: 12px;
-      display: flex;
-      flex-direction: column;
-      gap: 2px;
-      z-index: 10;
-    }
-    .zoom-btn {
-      width: 36px;
-      height: 36px;
-      background: white;
-      border: none;
-      border-radius: 4px;
-      font-size: 20px;
-      font-weight: 300;
-      cursor: pointer;
-      box-shadow: 0 2px 6px rgba(0,0,0,0.25);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      color: #444;
-      line-height: 1;
-    }
-    .zoom-btn:hover { background: #f5f5f5; }
+
     #map-wrap { flex: 1; position: relative; min-height: 0; }
-    .iw { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; max-width: 220px; }
-    .iw h3 { font-size: 14px; font-weight: 600; margin-bottom: 5px; color: #111; }
-    .iw .tag {
+    #map { height: 100%; width: 100%; }
+
+    .popup { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; max-width: 240px; }
+    .popup h3 { font-size: 14px; font-weight: 600; margin-bottom: 5px; color: #111; }
+    .popup .tag {
       display: inline-block; padding: 2px 9px; border-radius: 10px;
       font-size: 11px; color: white; margin-bottom: 7px; font-weight: 500;
     }
-    .iw .meta { font-size: 12px; color: #555; line-height: 1.5; }
-    .iw .meta span { display: block; }
+    .popup .meta { font-size: 12px; color: #555; line-height: 1.5; }
+    .popup .meta span { display: block; }
+
+    .leaflet-control-zoom a { box-shadow: 0 2px 6px rgba(0,0,0,0.25) !important; border: none !important; }
   </style>
 </head>
+
 <body>
-<div id="container">
-  <div id="header">
-    <div>
-      <h1>Sydney City Guide — Softer Volumes</h1>
-      <p>103 recommendations</p>
+  <div id="container">
+    <div id="header">
+      <div>
+        <h1>Sydney City Guide — Softer Volumes</h1>
+        <p>103 recommendations</p>
+      </div>
+    </div>
+
+    <div id="filters">
+      <button class="filter-btn" data-category="all" style="border-color:#111; background:#111; color:white;">All</button>
+      <button class="filter-btn" data-category="cafe" style="border-color:#6D4C41; background:#6D4C41; color:white;">☕ Cafes</button>
+      <button class="filter-btn" data-category="restaurant" style="border-color:#E53935; background:#E53935; color:white;">🍽 Eat &amp; Drink</button>
+      <button class="filter-btn" data-category="store" style="border-color:#8E24AA; background:#8E24AA; color:white;">🛍 Stores</button>
+      <button class="filter-btn" data-category="hotel" style="border-color:#1E88E5; background:#1E88E5; color:white;">🏨 Hotels</button>
+      <button class="filter-btn" data-category="wellness" style="border-color:#2E7D32; background:#2E7D32; color:white;">🌿 Wellness</button>
+      <button class="filter-btn" data-category="attraction" style="border-color:#E65100; background:#E65100; color:white;">📍 Sights</button>
+    </div>
+
+    <div id="map-wrap">
+      <div id="map"></div>
     </div>
   </div>
-  <div id="filters">
-    <button class="filter-btn active" data-category="all" style="color:#111;">All</button>
-    <button class="filter-btn active" data-category="cafe" style="border-color:#6D4C41; color:#6D4C41;">☕ Cafes</button>
-    <button class="filter-btn active" data-category="restaurant" style="border-color:#E53935; color:#E53935;">🍽 Eat &amp; Drink</button>
-    <button class="filter-btn active" data-category="store" style="border-color:#8E24AA; color:#8E24AA;">🛍 Stores</button>
-    <button class="filter-btn active" data-category="hotel" style="border-color:#1E88E5; color:#1E88E5;">🏨 Hotels</button>
-    <button class="filter-btn active" data-category="wellness" style="border-color:#2E7D32; color:#2E7D32;">🌿 Wellness</button>
-    <button class="filter-btn active" data-category="attraction" style="border-color:#E65100; color:#E65100;">📍 Sights</button>
-  </div>
-  <div id="map-wrap">
-    <div id="map"></div>
-    <div class="zoom-controls">
-      <button class="zoom-btn" id="zoom-in" title="Zoom in">+</button>
-      <button class="zoom-btn" id="zoom-out" title="Zoom out">−</button>
-    </div>
-  </div>
-</div>
 
-<script>
-const COLORS = {
-  cafe:       '#6D4C41',
-  restaurant: '#E53935',
-  store:      '#8E24AA',
-  hotel:      '#1E88E5',
-  wellness:   '#2E7D32',
-  attraction: '#E65100'
-};
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+    integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
 
-const LABELS = {
-  cafe: 'Cafe',
-  restaurant: 'Restaurant / Bar',
-  store: 'Store',
-  hotel: 'Hotel',
-  wellness: 'Wellness / Attraction',
-  attraction: 'Sight'
-};
+  <script>
+    const COLORS = {
+      cafe:       '#6D4C41',
+      restaurant: '#E53935',
+      store:      '#8E24AA',
+      hotel:      '#1E88E5',
+      wellness:   '#2E7D32',
+      attraction: '#E65100'
+    };
+
+    const LABELS = {
+      cafe: 'Cafe',
+      restaurant: 'Restaurant / Bar',
+      store: 'Store',
+      hotel: 'Hotel',
+      wellness: 'Wellness',
+      attraction: 'Sight'
+    };
 
 const venues = [
   // ── CAFES ──
@@ -220,45 +204,27 @@ const venues = [
   { name: "Sydney Metro",              category: "attraction", suburb: "Various",       type: "Transport / architecture",    page: "pp. 61–90",  lat: -33.8688, lng: 151.2100 }
 ];
 
-let map, markers = [], infoWindow;
-const activeCategories = new Set(['cafe','restaurant','store','hotel','wellness','attraction']);
+    const map = L.map('map', { zoomControl: true }).setView([-33.8688, 151.2150], 13);
 
-function initMap() {
-  map = new google.maps.Map(document.getElementById('map'), {
-    center: { lat: -33.8688, lng: 151.2150 },
-    zoom: 13,
-    mapTypeControl: false,
-    streetViewControl: false,
-    fullscreenControl: true,
-    styles: [
-      { featureType: "poi", elementType: "labels", stylers: [{ visibility: "off" }] },
-      { featureType: "transit", elementType: "labels.icon", stylers: [{ visibility: "off" }] }
-    ]
-  });
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      maxZoom: 19,
+      attribution: '&copy; OpenStreetMap contributors'
+    }).addTo(map);
 
-  infoWindow = new google.maps.InfoWindow();
+    const layerByCat = {
+      cafe: L.layerGroup(),
+      restaurant: L.layerGroup(),
+      store: L.layerGroup(),
+      hotel: L.layerGroup(),
+      wellness: L.layerGroup(),
+      attraction: L.layerGroup()
+    };
 
-  document.getElementById('zoom-in').addEventListener('click', () => map.setZoom(map.getZoom() + 1));
-  document.getElementById('zoom-out').addEventListener('click', () => map.setZoom(map.getZoom() - 1));
+    const active = new Set(['cafe','restaurant','store','hotel','wellness','attraction']);
 
-  venues.forEach(v => {
-    const marker = new google.maps.Marker({
-      position: { lat: v.lat, lng: v.lng },
-      map,
-      title: v.name,
-      icon: {
-        path: google.maps.SymbolPath.CIRCLE,
-        fillColor: COLORS[v.category],
-        fillOpacity: 0.92,
-        strokeColor: '#ffffff',
-        strokeWeight: 2,
-        scale: 9
-      }
-    });
-    marker._cat = v.category;
-    marker.addListener('click', () => {
-      infoWindow.setContent(`
-        <div class="iw">
+    function popupHtml(v) {
+      return `
+        <div class="popup">
           <h3>${v.name}</h3>
           <span class="tag" style="background:${COLORS[v.category]}">${LABELS[v.category]}</span>
           <div class="meta">
@@ -267,71 +233,65 @@ function initMap() {
             <span style="color:#bbb; font-size:11px;">Guide ${v.page}</span>
           </div>
         </div>
-      `);
-      infoWindow.open(map, marker);
-    });
-    markers.push(marker);
-  });
-
-  // Filter buttons
-  document.querySelectorAll('.filter-btn').forEach(btn => {
-    const cat = btn.dataset.category;
-    if (!cat) return;
-
-    // Set initial active style
-    if (cat !== 'all') {
-      btn.style.background = COLORS[cat];
-      btn.style.color = 'white';
-    } else {
-      btn.style.background = '#111';
-      btn.style.color = 'white';
+      `;
     }
 
-    btn.addEventListener('click', () => {
-      if (cat === 'all') {
-        const allOn = activeCategories.size === 6;
-        if (allOn) {
-          activeCategories.clear();
-          btn.style.background = 'white';
-          btn.style.color = '#111';
-          document.querySelectorAll('.filter-btn[data-category]:not([data-category="all"])').forEach(b => {
-            b.style.background = 'white';
-            b.style.color = COLORS[b.dataset.category];
-          });
-        } else {
-          ['cafe','restaurant','store','hotel','wellness','attraction'].forEach(c => activeCategories.add(c));
-          btn.style.background = '#111';
-          btn.style.color = 'white';
-          document.querySelectorAll('.filter-btn[data-category]:not([data-category="all"])').forEach(b => {
-            b.style.background = COLORS[b.dataset.category];
-            b.style.color = 'white';
-          });
-        }
-      } else {
-        if (activeCategories.has(cat)) {
-          activeCategories.delete(cat);
-          btn.style.background = 'white';
-          btn.style.color = COLORS[cat];
-        } else {
-          activeCategories.add(cat);
-          btn.style.background = COLORS[cat];
-          btn.style.color = 'white';
-        }
-        // Update "all" button state
-        const allBtn = document.querySelector('.filter-btn[data-category="all"]');
-        if (activeCategories.size === 6) {
-          allBtn.style.background = '#111';
-          allBtn.style.color = 'white';
-        } else {
-          allBtn.style.background = 'white';
-          allBtn.style.color = '#111';
-        }
-      }
-      markers.forEach(m => m.setVisible(activeCategories.has(m._cat)));
+    venues.forEach(v => {
+      const marker = L.circleMarker([v.lat, v.lng], {
+        radius: 7,
+        color: '#fff',
+        weight: 2,
+        fillColor: COLORS[v.category],
+        fillOpacity: 0.92
+      });
+      marker.bindPopup(popupHtml(v));
+      marker.addTo(layerByCat[v.category]);
     });
-  });
-}
-</script>
-<script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyCQbHxDvtHa6Og3hIAkf_FWxt7aREo_t-c&callback=initMap&loading=async" async defer></script>
+
+    function refreshLayers() {
+      Object.entries(layerByCat).forEach(([cat, layer]) => {
+        const on = active.has(cat);
+        if (on && !map.hasLayer(layer)) layer.addTo(map);
+        if (!on && map.hasLayer(layer)) map.removeLayer(layer);
+      });
+    }
+
+    refreshLayers();
+
+    function setBtn(cat, on) {
+      const btn = document.querySelector(`.filter-btn[data-category="${cat}"]`);
+      if (!btn) return;
+      if (cat === 'all') {
+        btn.style.background = on ? '#111' : 'white';
+        btn.style.color = on ? 'white' : '#111';
+        return;
+      }
+      btn.style.background = on ? COLORS[cat] : 'white';
+      btn.style.color = on ? 'white' : COLORS[cat];
+    }
+
+    document.querySelectorAll('.filter-btn').forEach(btn => {
+      const cat = btn.dataset.category;
+      btn.addEventListener('click', () => {
+        if (cat === 'all') {
+          const allOn = active.size === 6;
+          if (allOn) active.clear();
+          else ['cafe','restaurant','store','hotel','wellness','attraction'].forEach(c => active.add(c));
+
+          setBtn('all', active.size === 6);
+          ['cafe','restaurant','store','hotel','wellness','attraction'].forEach(c => setBtn(c, active.has(c)));
+          refreshLayers();
+          return;
+        }
+
+        if (active.has(cat)) active.delete(cat);
+        else active.add(cat);
+
+        setBtn(cat, active.has(cat));
+        setBtn('all', active.size === 6);
+        refreshLayers();
+      });
+    });
+  </script>
 </body>
 </html>
