@@ -1,0 +1,337 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Sydney City Guide — Softer Volumes (Google Maps)</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, sans-serif; }
+    #container { display: flex; flex-direction: column; height: 100vh; }
+    #header { background: #111; color: white; padding: 12px 16px; display: flex; align-items: center; justify-content: space-between; }
+    #header h1 { font-size: 15px; font-weight: 600; letter-spacing: 0.01em; }
+    #header p { font-size: 12px; color: #888; }
+    #filters { background: #fff; padding: 8px 12px; display: flex; flex-wrap: wrap; gap: 6px; border-bottom: 1px solid #e5e5e5; }
+    .filter-btn {
+      padding: 5px 12px; border-radius: 20px; border: 1.5px solid;
+      font-size: 12px; cursor: pointer; font-weight: 500;
+      transition: all 0.15s; background: white;
+    }
+    .filter-btn.active { color: white !important; }
+    .filter-btn[data-category="all"] { border-color: #111; }
+    .filter-btn[data-category="all"].active { background: #111; color: white !important; }
+    #map { flex: 1; min-height: 0; height: 100%; width: 100%; }
+    .zoom-controls {
+      position: absolute;
+      bottom: 120px;
+      right: 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      z-index: 10;
+    }
+    .zoom-btn {
+      width: 36px;
+      height: 36px;
+      background: white;
+      border: none;
+      border-radius: 4px;
+      font-size: 20px;
+      font-weight: 300;
+      cursor: pointer;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.25);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #444;
+      line-height: 1;
+    }
+    .zoom-btn:hover { background: #f5f5f5; }
+    #map-wrap { flex: 1; position: relative; min-height: 0; }
+    .iw { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; max-width: 220px; }
+    .iw h3 { font-size: 14px; font-weight: 600; margin-bottom: 5px; color: #111; }
+    .iw .tag {
+      display: inline-block; padding: 2px 9px; border-radius: 10px;
+      font-size: 11px; color: white; margin-bottom: 7px; font-weight: 500;
+    }
+    .iw .meta { font-size: 12px; color: #555; line-height: 1.5; }
+    .iw .meta span { display: block; }
+  </style>
+</head>
+<body>
+<div id="container">
+  <div id="header">
+    <div>
+      <h1>Sydney City Guide — Softer Volumes (Google Maps)</h1>
+      <p>103 recommendations</p>
+    </div>
+  </div>
+  <div id="filters">
+    <button class="filter-btn active" data-category="all" style="color:#111;">All</button>
+    <button class="filter-btn active" data-category="cafe" style="border-color:#6D4C41; color:#6D4C41;">☕ Cafes</button>
+    <button class="filter-btn active" data-category="restaurant" style="border-color:#E53935; color:#E53935;">🍽 Eat &amp; Drink</button>
+    <button class="filter-btn active" data-category="store" style="border-color:#8E24AA; color:#8E24AA;">🛍 Stores</button>
+    <button class="filter-btn active" data-category="hotel" style="border-color:#1E88E5; color:#1E88E5;">🏨 Hotels</button>
+    <button class="filter-btn active" data-category="wellness" style="border-color:#2E7D32; color:#2E7D32;">🌿 Wellness</button>
+    <button class="filter-btn active" data-category="attraction" style="border-color:#E65100; color:#E65100;">📍 Sights</button>
+  </div>
+  <div id="map-wrap">
+    <div id="map"></div>
+    <div class="zoom-controls">
+      <button class="zoom-btn" id="zoom-in" title="Zoom in">+</button>
+      <button class="zoom-btn" id="zoom-out" title="Zoom out">−</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const COLORS = {
+  cafe:       '#6D4C41',
+  restaurant: '#E53935',
+  store:      '#8E24AA',
+  hotel:      '#1E88E5',
+  wellness:   '#2E7D32',
+  attraction: '#E65100'
+};
+
+const LABELS = {
+  cafe: 'Cafe',
+  restaurant: 'Restaurant / Bar',
+  store: 'Store',
+  hotel: 'Hotel',
+  wellness: 'Wellness / Attraction',
+  attraction: 'Sight'
+};
+
+const venues = [
+  // ── CAFES ──
+  { name: "Skittle Lane",              category: "cafe",       suburb: "CBD",           type: "Specialty coffee",            page: "pp. 6–8",    lat: -33.8697, lng: 151.2073 },
+  { name: "LeTAO",                     category: "cafe",       suburb: "CBD",           type: "Japanese dessert cafe",       page: "pp. 9–12",   lat: -33.8744, lng: 151.2062 },
+  { name: "Haven Coffee",              category: "cafe",       suburb: "Surry Hills",   type: "Specialty coffee/roastery",   page: "pp. 13–15",  lat: -33.8855, lng: 151.2095 },
+  { name: "S'WICH Bondi",              category: "cafe",       suburb: "Bondi Beach",   type: "Sandwich/salad cafe",         page: "pp. 16–18",  lat: -33.8914, lng: 151.2753 },
+  { name: "Soulmate",                  category: "cafe",       suburb: "Newtown",       type: "Coffee & brunch",             page: "p. 19",      lat: -33.8980, lng: 151.1810 },
+  { name: "Noon",                      category: "cafe",       suburb: "Manly",         type: "Breakfast/lunch cafe",        page: "pp. 20–22",  lat: -33.7974, lng: 151.2856 },
+  { name: "Only Coffee Project",       category: "cafe",       suburb: "Crows Nest",    type: "Espresso bar",                page: "pp. 23–24",  lat: -33.8284, lng: 151.2044 },
+  { name: "Paramount Coffee Project",  category: "cafe",       suburb: "Surry Hills",   type: "Coffee/brunch & roastery",    page: "p. 25",      lat: -33.8848, lng: 151.2082 },
+  { name: "Deluca Coffee",             category: "cafe",       suburb: "Marrickville",  type: "Coffee cafe & roastery",      page: "pp. 26–27",  lat: -33.9116, lng: 151.1557 },
+  { name: "Algorithm",                 category: "cafe",       suburb: "Marrickville",  type: "Coffee & brunch cafe",        page: "pp. 28–29",  lat: -33.9120, lng: 151.1570 },
+  { name: "Artificer",                 category: "cafe",       suburb: "Surry Hills",   type: "Specialty coffee & roastery", page: "p. 30",      lat: -33.8862, lng: 151.2093 },
+  { name: "Pillar Brewers",            category: "cafe",       suburb: "Burwood",       type: "Cafe/coffee roastery",        page: "p. 31",      lat: -33.8774, lng: 151.1035 },
+  { name: "bills",                     category: "cafe",       suburb: "Darlinghurst",  type: "Cafe",                        page: "p. 33",      lat: -33.8784, lng: 151.2186 },
+  { name: "ONA Coffee Sydney",         category: "cafe",       suburb: "Marrickville",  type: "Roastery & cafe",             page: "p. 33",      lat: -33.9108, lng: 151.1545 },
+  { name: "Effie's",                   category: "cafe",       suburb: "Balgowlah",     type: "Coffee shop & wine bar",      page: "p. 33",      lat: -33.7997, lng: 151.2630 },
+  { name: "Rollers Bakehouse",         category: "cafe",       suburb: "Manly",         type: "Bakery",                      page: "p. 33",      lat: -33.7965, lng: 151.2870 },
+  { name: "Single O",                  category: "cafe",       suburb: "Surry Hills",   type: "Roastery & cafe",             page: "p. 33",      lat: -33.8862, lng: 151.2078 },
+  { name: "Veneziano",                 category: "cafe",       suburb: "Surry Hills",   type: "Roastery & espresso bar",     page: "p. 33",      lat: -33.8858, lng: 151.2088 },
+  { name: "Superfreak",                category: "cafe",       suburb: "Marrickville",  type: "Cafe",                        page: "p. 33",      lat: -33.9112, lng: 151.1562 },
+  { name: "A.P Bakery",                category: "cafe",       suburb: "Surry Hills",   type: "Bakery",                      page: "p. 33",      lat: -33.8852, lng: 151.2080 },
+  { name: "Baker Bleu",                category: "cafe",       suburb: "Double Bay",    type: "Bakery",                      page: "p. 33",      lat: -33.8773, lng: 151.2412 },
+  { name: "Mecca Coffee",              category: "cafe",       suburb: "Alexandria",    type: "Roastery & cafe",             page: "p. 33",      lat: -33.9033, lng: 151.1956 },
+
+  // ── RESTAURANTS & BARS ──
+  { name: "Gildas",                    category: "restaurant", suburb: "Surry Hills",   type: "Wine bar",                    page: "p. 36",      lat: -33.8870, lng: 151.2098 },
+  { name: "Armorica",                  category: "restaurant", suburb: "Surry Hills",   type: "French brasserie",            page: "p. 39",      lat: -33.8865, lng: 151.2105 },
+  { name: "Aalia",                     category: "restaurant", suburb: "CBD",           type: "Middle Eastern/N. African",   page: "p. 42",      lat: -33.8681, lng: 151.2094 },
+  { name: "Lana",                      category: "restaurant", suburb: "CBD",           type: "Italian-Asian fusion",        page: "p. 45",      lat: -33.8635, lng: 151.2110 },
+  { name: "Il Baretto",                category: "restaurant", suburb: "Paddington",    type: "Italian restaurant",          page: "p. 48",      lat: -33.8836, lng: 151.2273 },
+  { name: "Rekodo",                    category: "restaurant", suburb: "Barangaroo",    type: "Japanese restaurant & vinyl", page: "p. 52",      lat: -33.8614, lng: 151.2011 },
+  { name: "Tanuki",                    category: "restaurant", suburb: "Double Bay",    type: "Japanese restaurant",         page: "p. 56",      lat: -33.8778, lng: 151.2435 },
+  { name: "St. Alma",                  category: "restaurant", suburb: "Freshwater",    type: "Mexican-Australian fusion",   page: "p. 58",      lat: -33.7815, lng: 151.2837 },
+  { name: "Busta",                     category: "restaurant", suburb: "Manly",         type: "Casual Italian",              page: "pp. 61–90",  lat: -33.7980, lng: 151.2860 },
+  { name: "Grana",                     category: "restaurant", suburb: "Circular Quay", type: "Italian (Hinchcliff House)",  page: "pp. 61–90",  lat: -33.8645, lng: 151.2094 },
+  { name: "Oborozuki",                 category: "restaurant", suburb: "Circular Quay", type: "French-Japanese fine dining", page: "pp. 61–90",  lat: -33.8638, lng: 151.2100 },
+  { name: "ANTE",                      category: "restaurant", suburb: "Newtown",       type: "Sake bar",                    page: "pp. 61–90",  lat: -33.8988, lng: 151.1798 },
+  { name: "Bar Besuto",                category: "restaurant", suburb: "CBD",           type: "Japanese whisky bar",         page: "pp. 61–90",  lat: -33.8690, lng: 151.2080 },
+  { name: "Poly",                      category: "restaurant", suburb: "Surry Hills",   type: "Wine bar/restaurant",         page: "pp. 61–90",  lat: -33.8843, lng: 151.2110 },
+  { name: "Four Pillars Lab",          category: "restaurant", suburb: "Surry Hills",   type: "Gin distillery, bar & shop",  page: "pp. 61–90",  lat: -33.8850, lng: 151.2115 },
+  { name: "Banco Manly",               category: "restaurant", suburb: "Manly",         type: "Restaurant & natural wine",   page: "pp. 61–90",  lat: -33.7971, lng: 151.2848 },
+  { name: "Saint Peter",               category: "restaurant", suburb: "Paddington",    type: "Australian fish eatery",      page: "pp. 61–90",  lat: -33.8843, lng: 151.2260 },
+  { name: "Cafe Paci",                 category: "restaurant", suburb: "Newtown",       type: "Modern Australian",           page: "pp. 61–90",  lat: -33.8972, lng: 151.1800 },
+  { name: "TOKKI",                     category: "restaurant", suburb: "Surry Hills",   type: "Japanese/Korean izakaya",     page: "pp. 61–90",  lat: -33.8868, lng: 151.2102 },
+  { name: "Bar Vincent",               category: "restaurant", suburb: "Darlinghurst",  type: "European restaurant",         page: "pp. 61–90",  lat: -33.8788, lng: 151.2200 },
+  { name: "Alberto's Lounge",          category: "restaurant", suburb: "CBD",           type: "Italian restaurant",          page: "pp. 61–90",  lat: -33.8700, lng: 151.2070 },
+  { name: "HACO",                      category: "restaurant", suburb: "CBD",           type: "Tempura restaurant",          page: "pp. 61–90",  lat: -33.8695, lng: 151.2085 },
+  { name: "Ester",                     category: "restaurant", suburb: "Chippendale",   type: "Australian restaurant & bar", page: "pp. 61–90",  lat: -33.8930, lng: 151.1983 },
+  { name: "Ragazzi Wine and Pasta",    category: "restaurant", suburb: "CBD",           type: "Italian restaurant",          page: "pp. 61–90",  lat: -33.8705, lng: 151.2075 },
+  { name: "PS40",                      category: "restaurant", suburb: "CBD",           type: "Cocktail bar",                page: "pp. 61–90",  lat: -33.8710, lng: 151.2078 },
+  { name: "Cantina OK!",               category: "restaurant", suburb: "CBD",           type: "Micro mezcal bar",            page: "pp. 61–90",  lat: -33.8715, lng: 151.2068 },
+  { name: "Handpicked Wines",          category: "restaurant", suburb: "Chippendale",   type: "Cellar door",                 page: "pp. 61–90",  lat: -33.8925, lng: 151.1990 },
+  { name: "Continental Deli",          category: "restaurant", suburb: "Newtown",       type: "Bar & bistro",                page: "pp. 61–90",  lat: -33.8980, lng: 151.1785 },
+  { name: "Archie Rose Distilling Co", category: "restaurant", suburb: "Rosebery",      type: "Distillery & bar",            page: "pp. 61–90",  lat: -33.9144, lng: 151.2029 },
+  { name: "BART Jr.",                  category: "restaurant", suburb: "Redfern",       type: "Bar & restaurant",            page: "pp. 61–90",  lat: -33.8928, lng: 151.2041 },
+  { name: "JAM Record Bar",            category: "restaurant", suburb: "CBD",           type: "Vinyl & cocktail bar",        page: "pp. 61–90",  lat: -33.8720, lng: 151.2072 },
+  { name: "ATTENZIONE! Food & Wine",   category: "restaurant", suburb: "Redfern",       type: "European restaurant & wine",  page: "pp. 61–90",  lat: -33.8935, lng: 151.2048 },
+
+  // ── STORES ──
+  { name: "Provider Store",            category: "store",      suburb: "Surry Hills",   type: "Lifestyle/homeware",          page: "p. 92",      lat: -33.8875, lng: 151.2092 },
+  { name: "Maison Balzac",             category: "store",      suburb: "Surry Hills",   type: "Homeware/glassware",          page: "p. 94",      lat: -33.8878, lng: 151.2088 },
+  { name: "Le Labo",                   category: "store",      suburb: "Bondi Beach",   type: "Perfume/fragrance",           page: "p. 96",      lat: -33.8918, lng: 151.2748 },
+  { name: "July",                      category: "store",      suburb: "Rosebery",      type: "Luggage & accessories",       page: "p. 99",      lat: -33.9150, lng: 151.2035 },
+  { name: "Studio Henry Wilson",       category: "store",      suburb: "Paddington",    type: "Design/homeware showroom",    page: "p. 102",     lat: -33.8848, lng: 151.2268 },
+  { name: "Cultiver",                  category: "store",      suburb: "Mosman",        type: "Home textiles/linen",         page: "p. 105",     lat: -33.8268, lng: 151.2428 },
+  { name: "Above The Clouds",          category: "store",      suburb: "Surry Hills",   type: "Clothing & accessories",      page: "p. 108",     lat: -33.8882, lng: 151.2095 },
+  { name: "Saturdays NYC",             category: "store",      suburb: "Bondi Beach",   type: "Clothing/cafe hybrid",        page: "p. 110",     lat: -33.8920, lng: 151.2758 },
+  { name: "BTWNLNS",                   category: "store",      suburb: "Newtown",       type: "Design store",                page: "p. 113",     lat: -33.8984, lng: 151.1793 },
+  { name: "Jac + Jack",                category: "store",      suburb: "Paddington",    type: "Clothing",                    page: "p. 114",     lat: -33.8853, lng: 151.2265 },
+  { name: "Bondi Wash",                category: "store",      suburb: "Bondi Beach",   type: "Natural body & home products",page: "p. 115",     lat: -33.8924, lng: 151.2762 },
+  { name: "HAY",                       category: "store",      suburb: "Darlinghurst",  type: "Furniture/homeware",          page: "p. 118",     lat: -33.8794, lng: 151.2215 },
+  { name: "Bandsome",                  category: "store",      suburb: "Surry Hills",   type: "Clothing",                    page: "p. 119",     lat: -33.8885, lng: 151.2098 },
+  { name: "SIR.",                      category: "store",      suburb: "Bondi Beach",   type: "Clothing",                    page: "p. 121",     lat: -33.8928, lng: 151.2755 },
+  { name: "IN BED",                    category: "store",      suburb: "Paddington",    type: "Homewares",                   page: "p. 121",     lat: -33.8858, lng: 151.2262 },
+  { name: "Assembly Label",            category: "store",      suburb: "Bondi Beach",   type: "Clothing",                    page: "p. 121",     lat: -33.8925, lng: 151.2750 },
+  { name: "Venroy",                    category: "store",      suburb: "Bondi Beach",   type: "Clothing",                    page: "p. 121",     lat: -33.8930, lng: 151.2756 },
+  { name: "Incu",                      category: "store",      suburb: "CBD",           type: "Clothing",                    page: "p. 121",     lat: -33.8725, lng: 151.2068 },
+  { name: "District",                  category: "store",      suburb: "Darlinghurst",  type: "Furniture",                   page: "p. 121",     lat: -33.8798, lng: 151.2220 },
+
+  // ── HOTELS ──
+  { name: "Ace Hotel Sydney",          category: "hotel",      suburb: "Surry Hills",   type: "Hotel",                       page: "pp. 122–150",lat: -33.8860, lng: 151.2075 },
+  { name: "Capella Sydney",            category: "hotel",      suburb: "CBD",           type: "Luxury hotel",                page: "pp. 122–150",lat: -33.8668, lng: 151.2068 },
+  { name: "Paramount House Hotel",     category: "hotel",      suburb: "Surry Hills",   type: "Boutique hotel",              page: "pp. 122–150",lat: -33.8855, lng: 151.2085 },
+  { name: "Little National Sydney",    category: "hotel",      suburb: "CBD",           type: "Hotel",                       page: "pp. 122–150",lat: -33.8675, lng: 151.2060 },
+  { name: "The Old Clare Hotel",       category: "hotel",      suburb: "Chippendale",   type: "Boutique hotel",              page: "pp. 122–150",lat: -33.8940, lng: 151.1975 },
+  { name: "Crystalbrook Albion",       category: "hotel",      suburb: "Surry Hills",   type: "Boutique hotel",              page: "pp. 122–150",lat: -33.8865, lng: 151.2078 },
+  { name: "Pier One Sydney Harbour",   category: "hotel",      suburb: "Dawes Point",   type: "Hotel",                       page: "pp. 122–150",lat: -33.8572, lng: 151.2073 },
+  { name: "Park Hyatt Sydney",         category: "hotel",      suburb: "The Rocks",     type: "Hotel",                       page: "pp. 122–150",lat: -33.8600, lng: 151.2089 },
+  { name: "QT Bondi",                  category: "hotel",      suburb: "Bondi Beach",   type: "Hotel",                       page: "pp. 122–150",lat: -33.8935, lng: 151.2760 },
+  { name: "Sofitel Sydney Darling Harbour", category: "hotel", suburb: "CBD",           type: "Hotel",                       page: "pp. 122–150",lat: -33.8738, lng: 151.2012 },
+  { name: "Ovolo Woolloomooloo",       category: "hotel",      suburb: "Woolloomooloo", type: "Hotel",                       page: "pp. 122–150",lat: -33.8702, lng: 151.2205 },
+  { name: "Oxford House",              category: "hotel",      suburb: "Paddington",    type: "Hotel",                       page: "pp. 122–150",lat: -33.8840, lng: 151.2270 },
+  { name: "Hotel Morris",              category: "hotel",      suburb: "Haymarket",     type: "Hotel",                       page: "pp. 122–150",lat: -33.8785, lng: 151.2034 },
+  { name: "The EVE Hotel",             category: "hotel",      suburb: "Redfern",       type: "Hotel",                       page: "pp. 122–150",lat: -33.8940, lng: 151.2055 },
+
+  // ── WELLNESS ──
+  { name: "Nimbus & Co.",              category: "wellness",   suburb: "Bondi",         type: "Infrared sauna studio",       page: "pp. 122–150",lat: -33.8932, lng: 151.2745 },
+  { name: "The Parlour Room",          category: "wellness",   suburb: "Clovelly",      type: "Beauty salon / nail spa",     page: "pp. 151–152",lat: -33.9149, lng: 151.2616 },
+  { name: "Slow House Bondi",          category: "wellness",   suburb: "Bondi Beach",   type: "Sauna",                       page: "p. 153",     lat: -33.8938, lng: 151.2748 },
+  { name: "White Rabbit Gallery",      category: "wellness",   suburb: "Chippendale",   type: "Art gallery",                 page: "p. 153",     lat: -33.8935, lng: 151.1978 },
+  { name: "Bondi Icebergs Pool",       category: "wellness",   suburb: "Bondi Beach",   type: "Pool & sauna",                page: "p. 153",     lat: -33.8988, lng: 151.2742 },
+  { name: "Museum of Contemporary Art",category: "wellness",   suburb: "The Rocks",     type: "Museum",                      page: "p. 153",     lat: -33.8598, lng: 151.2086 },
+  { name: "Bondi to Coogee Walk",      category: "wellness",   suburb: "Bondi/Coogee",  type: "Coastal walk",                page: "p. 153",     lat: -33.8950, lng: 151.2750 },
+  { name: "Golden Age Cinema",         category: "wellness",   suburb: "Surry Hills",   type: "Cinema & bar",                page: "p. 153",     lat: -33.8888, lng: 151.2102 },
+  { name: "Shelter",                   category: "wellness",   suburb: "Double Bay",    type: "Gym & spa",                   page: "p. 153",     lat: -33.8768, lng: 151.2428 },
+
+  // ── ATTRACTIONS ──
+  { name: "Bondi Beach",               category: "attraction", suburb: "Bondi Beach",   type: "Beach",                       page: "pp. 61–90",  lat: -33.8914, lng: 151.2767 },
+  { name: "Sydney Opera House",        category: "attraction", suburb: "Circular Quay", type: "Landmark",                    page: "pp. 61–90",  lat: -33.8568, lng: 151.2153 },
+  { name: "Fairlight Beach Rockpool",  category: "attraction", suburb: "Fairlight",     type: "Beach / rockpool",            page: "pp. 61–90",  lat: -33.7949, lng: 151.2747 },
+  { name: "Chinamans Beach",           category: "attraction", suburb: "Mosman",        type: "Beach",                       page: "pp. 61–90",  lat: -33.8260, lng: 151.2438 },
+  { name: "Sydney Harbour Bridge",     category: "attraction", suburb: "The Rocks",     type: "Landmark",                    page: "pp. 61–90",  lat: -33.8523, lng: 151.2108 },
+  { name: "Dr Chau Chak Wing Building",category: "attraction", suburb: "Ultimo",        type: "Architecture (UTS)",          page: "pp. 61–90",  lat: -33.8813, lng: 151.1983 },
+  { name: "Sydney Metro",              category: "attraction", suburb: "Various",       type: "Transport / architecture",    page: "pp. 61–90",  lat: -33.8688, lng: 151.2100 }
+];
+
+let map, markers = [], infoWindow;
+const activeCategories = new Set(['cafe','restaurant','store','hotel','wellness','attraction']);
+
+function initMap() {
+  map = new google.maps.Map(document.getElementById('map'), {
+    center: { lat: -33.8688, lng: 151.2150 },
+    zoom: 13,
+    mapTypeControl: false,
+    streetViewControl: false,
+    fullscreenControl: true,
+    styles: [
+      { featureType: "poi", elementType: "labels", stylers: [{ visibility: "off" }] },
+      { featureType: "transit", elementType: "labels.icon", stylers: [{ visibility: "off" }] }
+    ]
+  });
+
+  infoWindow = new google.maps.InfoWindow();
+
+  document.getElementById('zoom-in').addEventListener('click', () => map.setZoom(map.getZoom() + 1));
+  document.getElementById('zoom-out').addEventListener('click', () => map.setZoom(map.getZoom() - 1));
+
+  venues.forEach(v => {
+    const marker = new google.maps.Marker({
+      position: { lat: v.lat, lng: v.lng },
+      map,
+      title: v.name,
+      icon: {
+        path: google.maps.SymbolPath.CIRCLE,
+        fillColor: COLORS[v.category],
+        fillOpacity: 0.92,
+        strokeColor: '#ffffff',
+        strokeWeight: 2,
+        scale: 9
+      }
+    });
+    marker._cat = v.category;
+    marker.addListener('click', () => {
+      infoWindow.setContent(`
+        <div class="iw">
+          <h3>${v.name}</h3>
+          <span class="tag" style="background:${COLORS[v.category]}">${LABELS[v.category]}</span>
+          <div class="meta">
+            <span>📍 ${v.suburb}</span>
+            <span style="color:#888">🍴 ${v.type}</span>
+            <span style="color:#bbb; font-size:11px;">Guide ${v.page}</span>
+          </div>
+        </div>
+      `);
+      infoWindow.open(map, marker);
+    });
+    markers.push(marker);
+  });
+
+  // Filter buttons
+  document.querySelectorAll('.filter-btn').forEach(btn => {
+    const cat = btn.dataset.category;
+    if (!cat) return;
+
+    // Set initial active style
+    if (cat !== 'all') {
+      btn.style.background = COLORS[cat];
+      btn.style.color = 'white';
+    } else {
+      btn.style.background = '#111';
+      btn.style.color = 'white';
+    }
+
+    btn.addEventListener('click', () => {
+      if (cat === 'all') {
+        const allOn = activeCategories.size === 6;
+        if (allOn) {
+          activeCategories.clear();
+          btn.style.background = 'white';
+          btn.style.color = '#111';
+          document.querySelectorAll('.filter-btn[data-category]:not([data-category="all"])').forEach(b => {
+            b.style.background = 'white';
+            b.style.color = COLORS[b.dataset.category];
+          });
+        } else {
+          ['cafe','restaurant','store','hotel','wellness','attraction'].forEach(c => activeCategories.add(c));
+          btn.style.background = '#111';
+          btn.style.color = 'white';
+          document.querySelectorAll('.filter-btn[data-category]:not([data-category="all"])').forEach(b => {
+            b.style.background = COLORS[b.dataset.category];
+            b.style.color = 'white';
+          });
+        }
+      } else {
+        if (activeCategories.has(cat)) {
+          activeCategories.delete(cat);
+          btn.style.background = 'white';
+          btn.style.color = COLORS[cat];
+        } else {
+          activeCategories.add(cat);
+          btn.style.background = COLORS[cat];
+          btn.style.color = 'white';
+        }
+        // Update "all" button state
+        const allBtn = document.querySelector('.filter-btn[data-category="all"]');
+        if (activeCategories.size === 6) {
+          allBtn.style.background = '#111';
+          allBtn.style.color = 'white';
+        } else {
+          allBtn.style.background = 'white';
+          allBtn.style.color = '#111';
+        }
+      }
+      markers.forEach(m => m.setVisible(activeCategories.has(m._cat)));
+    });
+  });
+}
+</script>
+<script src="https://maps.googleapis.com/maps/api/js?key=__GOOGLE_MAPS_API_KEY__&callback=initMap&loading=async" async defer></script>
+</body>
+</html>
